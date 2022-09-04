@@ -3,13 +3,12 @@ use core::option::Option::Some;
 use core::result::Result;
 use core::result::Result::Ok;
 
-use chrono::{Datelike, NaiveDateTime, Timelike};
+use chrono::NaiveDateTime;
 
 // line processing errors
 #[derive(Debug)]
 pub enum LineError {
     MatchFailed(),
-    AugmentFailed(&'static str),
     DateParseFailed(chrono::ParseError),
 }
 
@@ -35,12 +34,7 @@ impl DateAugmenter {
                 Ok(chrono::DateTime::parse_from_str(&s, self.fmt).map_err(LineError::DateParseFailed)?
                     .naive_utc())
             })
-            .or_else(|err| {
-                match err {
-                    err =>
-                        Ok(chrono::Utc::now().naive_utc())
-                }
-            })
+            .or_else(|_| Ok(chrono::Utc::now().naive_utc()))
     }
 }
 

@@ -5,12 +5,12 @@ use std::io::{self, BufRead};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
-use crate::augumeters::{Augmenter, DateAugmenter, PathAugmenter};
+use crate::augmenters::{Augmenter, DateAugmenter, PathAugmenter};
 use crate::parsers::{LineParser, RegexParser};
 use crate::writers::{LogWriter, PartitionWriter};
 
 mod parsers;
-mod augumeters;
+mod augmenters;
 mod writers;
 
 fn process_stream(

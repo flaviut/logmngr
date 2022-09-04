@@ -23,7 +23,6 @@ fn process_stream(
         let mut result = parser.parse(&line?);
         for augmenter in &augmenters {
             augmenter.augment(&mut result);
-            // .unwrap_or_else(|err| { eprintln!("Failed to augment line: {:?}", err)            });
         }
 
         writer.write_log(&result)?;

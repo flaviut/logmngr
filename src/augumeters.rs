@@ -3,7 +3,7 @@ use core::option::Option::Some;
 use core::result::Result;
 use core::result::Result::Ok;
 
-use chrono::{Datelike, Timelike};
+use chrono::{Datelike, NaiveDateTime, Timelike};
 
 // line processing errors
 #[derive(Debug)]
@@ -23,22 +23,32 @@ pub struct DateAugmenter {
     pub key: &'static str,
 }
 
+impl DateAugmenter {
+    fn time(&self, line: &mut json::JsonValue) -> Result<NaiveDateTime, LineError> {
+        line[self.key].take_string()
+            .map_or_else(|| Err(LineError::MatchFailed()), |s| Ok(s))
+            .and_then(|s| if let Some(tz) = self.default_timezone {
+                let dt = NaiveDateTime::parse_from_str(&s, self.fmt).map_err(LineError::DateParseFailed)?;
+                Ok(chrono::DateTime::<chrono::FixedOffset>::from_local(dt, tz)
+                    .naive_utc())
+            } else {
+                Ok(chrono::DateTime::parse_from_str(&s, self.fmt).map_err(LineError::DateParseFailed)?
+                    .naive_utc())
+            })
+            .or_else(|err| {
+                match err {
+                    err =>
+                        Ok(chrono::Utc::now().naive_utc())
+                }
+            })
+    }
+}
+
 impl Augmenter for DateAugmenter {
     fn augment(&self, line: &mut json::JsonValue) -> Result<(), LineError> {
-        let date_str = line[self.key].take_string().ok_or(LineError::AugmentFailed("Failed to read key"))?;
-        let dt = if let Some(tz) = self.default_timezone {
-            let dt = chrono::NaiveDateTime::parse_from_str(&date_str, self.fmt).map_err(LineError::DateParseFailed)?;
-            chrono::DateTime::<chrono::FixedOffset>::from_local(dt, tz)
-                .naive_utc()
-        } else {
-            chrono::DateTime::parse_from_str(&date_str, self.fmt).map_err(|_| LineError::MatchFailed())?
-                .naive_utc()
-        };
+        let dt = self.time(line)?;
 
-        line.insert(self.key,
-                    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z",
-                            dt.year(), dt.month(), dt.day(),
-                            dt.hour(), dt.minute(), dt.second(), dt.timestamp_subsec_millis())).unwrap();
+        line.insert(self.key, dt.timestamp_millis()).unwrap();
         Ok(())
     }
 }

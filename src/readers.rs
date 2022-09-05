@@ -1,5 +1,4 @@
-use std::io::{IoSlice, stdout, Write};
-use std::{io, os};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use linereader::LineReader;
@@ -50,15 +49,18 @@ impl IndexSearcher {
         let mut reader = LineReader::new(reader);
 
         while let Some(lines) = reader.next_batch() {
-            let lines = lines.expect("read error");
+            let lines = lines?;
             // line is a &[u8] owned by reader.
 
             let mut line_index = vec![0usize];
             line_index.extend(memmem::find_iter(&lines, "\n"));
 
+            // we store the matched lines as a bitset, since it is both very fast
+            // and can be queried in order
             let mut bitset: Vec<bool> = Vec::new();
             bitset.resize(line_index.len(), false);
 
+            // TODO once a line has been matched, we can skip the rest of the line
             for m in query.find_iter(lines) {
                 let m = m.expect("regex error");
                 // find the line number
@@ -67,11 +69,21 @@ impl IndexSearcher {
             }
 
             let lines = bitset.iter()
+                // get the line numbers of the matched lines
                 .enumerate().filter(|(_, b)| **b).map(|(i, _)| i)
-                .map(|i| IoSlice::new(&lines[line_index[i]..line_index[i + 1]]))
+                // return slices of the original buffer, each containing a line
+                .map(|i| {
+                    // we generally want to exclude the \n, but if the line is the first line in the
+                    // buffer, there is no \n at 0
+                    let line_start = if line_index[i] == 0 { 0 } else { line_index[i] + 1 };
+                    // + 1 to include the final \n
+                    let line_end = line_index[i + 1] + 1;
+
+                    io::IoSlice::new(&lines[line_start..line_end])
+                })
                 .collect::<Vec<_>>();
 
-            stdout().write_vectored(&lines)?;
+            io::stdout().write_vectored(&lines)?;
         }
         Ok(())
     }

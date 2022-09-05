@@ -2,7 +2,6 @@ extern crate pcre2;
 
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Mutex;
 

@@ -3,6 +3,8 @@ use core::result::Result::{Err, Ok};
 use json::object;
 use pcre2::bytes::{CaptureLocations, Regex};
 
+use crate::util::build_regex;
+
 pub trait LineParser {
     fn parse(&mut self, line: &String) -> json::JsonValue;
 }
@@ -60,17 +62,8 @@ pub struct RegexParser {
 }
 
 impl RegexParser {
-    pub fn new(re: &str) -> Self {
-        let re = unsafe {
-            pcre2::bytes::RegexBuilder::new()
-                // disabling utf check is unsafe, but we've validated that the
-                // lines are valid utf8 in the BufReader.
-                .disable_utf_check()
-                .jit_if_available(true)
-                .crlf(true)
-                .build(re)
-                .expect("pcre regex should compile")
-        };
+    pub fn new(re_pattern: &str) -> Self {
+        let re = build_regex(re_pattern).expect("regex to be valid");
         Self {
             captures: re.capture_locations(),
             re,

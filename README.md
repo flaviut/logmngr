@@ -10,6 +10,10 @@ $ # Index a log file or a set of log files
 $ logmngr --index <DIR> process <<file>...|/proc/self/fd/0>
 $ # Search the index
 $ logmngr --index <DIR> search <PCRE regex>
+{"timestamp":1469535138000,"level":"ERROR","component":"executor.Executor","message":"Exception in task 8.0 in stage 101.0 (TID 4380)","filename":"container_1460011102909_0176_01_000020.log"}
+{"timestamp":1469535138000,"level":"ERROR","component":"executor.Executor","message":"Exception in task 37.0 in stage 101.0 (TID 4409)","filename":"container_1460011102909_0176_01_000020.log"}
+{"timestamp":1469535147000,"level":"ERROR","component":"executor.Executor","message":"Exception in task 9.0 in stage 102.0 (TID 4424)","filename":"container_1460011102909_0176_01_000020.log"}
+{"timestamp":1469535147000,"level":"ERROR","component":"executor.Executor","message":"Exception in task 38.0 in stage 102.0 (TID 4453)","filename":"container_1460011102909_0176_01_000020.log"}
 ```
 
 ## Architecture
@@ -41,22 +45,7 @@ the user is interested in. Then, in parallel, each file is decompressed and sear
 with the given regular expression in chunks of 64KiB. Each matched line is written to
 standard output.
 
-### Future work
-
-Networking, horizontal scaling and data durability have not been implemented, but
-will flow quite simply out of this design:
-
-- there can be multiple servers accepting log entries
-- there can be multiple servers accepting search queries
-- these can be either the same set of servers or different servers connected
-  a network file system
-    - network file systems work great here because we generally get 10:1
-      compression
-- clients can be configured to choose a server at random to send batched log
-  entries to, and locally store them until the server acknowledges receipt
-- queries should be sent to all servers and the results merged
-
-### Performance
+## Performance
 
 The dataset used for testing were the [2.8GiB Spark job logs from Loghub][spark-logs].
 
@@ -79,7 +68,7 @@ Searching for "ERROR" takes 0.4s wall-clock and 5.6s CPU time, a rate of 6.5GiB/
 Searching for "INFO" takes 0.7s wall-clock and 10.0s CPU time, a rate of 3.8GiB/s.
 27074351 lines were matched.
 
-#### Analysis
+### Analysis
 
 When indexing, at the moment, multiple threads are used to process log lines,
 but only one thread will compress and write to disk at a time. This explains
@@ -91,3 +80,31 @@ When searching, the bottlenecks are:
 - decompression
 - regular expression matching (which is done by PCRE in JIT mode)
 - writing to standard output (more significant when many lines are matched)
+
+## Potential future work
+
+- Any tests whatsoever
+- Improve reliability--replace unwrap(), expect(), etc. with proper error handling
+- Implement some level of data durability
+- Spread search load across multiple machines
+- Remove bottleneck in indexing by using multiple threads to compress and write
+  different files rather than compressing and writing a single file at a time
+- Allow indexing from a TCP socket
+- Allow indexing from a TLS TCP socket
+- Allow indexing from HTTP
+- File-based configuration of
+  - the log parser (the text -> json step)
+  - log augmenters (add or normalize fields)
+  - output options (compression, chunk size)
+- Dynamic configuration over HTTP
+
+## License
+
+Licensed under the AGPLv3. See the LICENSE file for details. There are [many
+misconceptions about the AGPLv3.][agpl-misc]
+
+In short: you must distribute this source (or link here) if users can access
+this software over a network, but your software does not become AGPLv3 just
+because it makes network calls to this software.
+
+[agpl-misc]: https://drewdevault.com/2020/07/27/Anti-AGPL-propaganda.html

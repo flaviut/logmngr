@@ -2,6 +2,7 @@ extern crate pcre2;
 
 use std::fs::File;
 use std::io::{self, BufRead};
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
@@ -121,7 +122,14 @@ fn main() {
             let to = to.unwrap_or_else(|| chrono::NaiveDateTime::MAX);
             let from = from.unwrap_or_else(|| chrono::NaiveDateTime::MIN);
 
-            searcher.search(&query.0, from.timestamp_millis(), to.timestamp_millis()).unwrap();
+            if let Err(e) = searcher.search(&query.0, from.timestamp_millis(), to.timestamp_millis()) {
+                if e.kind() == io::ErrorKind::BrokenPipe {
+                    // being piped to another process, but the other process has closed
+                    // so we can just exit
+                } else {
+                    panic!("Error searching: {}", e);
+                }
+            }
         }
     }
 }

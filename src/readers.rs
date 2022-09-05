@@ -1,11 +1,11 @@
 use std::io::{IoSlice, stdout, Write};
+use std::{io, os};
 use std::path::PathBuf;
 
 use linereader::LineReader;
 use memchr::memmem;
 use pcre2::bytes::Regex;
-use rayon::iter::IntoParallelRefIterator;
-use rayon::iter::ParallelIterator;
+use rayon::prelude::*;
 
 pub struct IndexSearcher {
     // list of partitions by their start and end date
@@ -44,7 +44,7 @@ impl IndexSearcher {
         })
     }
 
-    fn search_partition(&self, query: &Regex, partition: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    fn search_partition(&self, query: &Regex, partition: &PathBuf) -> Result<(), io::Error> {
         let file = std::fs::File::open(partition)?;
         let reader = zstd::Decoder::new(file)?;
         let mut reader = LineReader::new(reader);
@@ -76,7 +76,7 @@ impl IndexSearcher {
         Ok(())
     }
 
-    pub fn search(&self, query: &Regex, from: i64, to: i64) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn search(&self, query: &Regex, from: i64, to: i64) -> Result<(), io::Error> {
         // filter all partitions that don't overlap with the search range
         self.partitions.par_iter()
             .filter(|(start, end, _)| {
@@ -85,10 +85,8 @@ impl IndexSearcher {
                     // partition end is after the search start
                     *end >= from
             })
-            .for_each(|(_, _, path)| {
-                self.search_partition(query, path).expect("should have been able to search the partition");
-            });
-
-        Ok(())
+            .try_for_each(|(_, _, path)| {
+                self.search_partition(query, path)
+            })
     }
 }
